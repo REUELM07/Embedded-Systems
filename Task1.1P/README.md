@@ -25,5 +25,3 @@ GND → Common ground
 
 ## Result
 The system successfully turns ON both lights when the button is presse and switches them OFF after the described time. 
-
-![Task 1.1P Circuit](circuit.png)
