@@ -1,0 +1,5 @@
+#define SECRET_SSID "Alfred Nobel"
+#define SECRET_PASS "CUPunjab"
+
+#define SECRET_CH_ID 3462012
+#define SECRET_WRITE_APIKEY "6O9NLG1KY12LCA7F"
