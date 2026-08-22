@@ -47,4 +47,6 @@ This prevents repeated messages while the sensor remains in the same light condi
 3) Sunlight-OFF email received
 4) Sunlight-ON function message
 5) Sunlight-OFF function message
-6) Function code 
+6) Function code
+7) Arduino hardware wiring
+8) BH1750 hardware wiring
