@@ -8,7 +8,7 @@ const char* WIFI_NAME = "Alfred Nobel";
 const char* WIFI_PASSWORD = "CUPunjab";
 
 //this is the laptop address where the MQTT broker is running
-const char* MQTT_BROKER = "10.50.10.47";
+const char* MQTT_BROKER = "";
 const int MQTT_PORT = 1883;
 
 //this topic carries the terrarium sunlight status
