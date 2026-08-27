@@ -1,3 +1,6 @@
+// Submitted by: REUEL MENPARA --> 2510994818
+// Task 3.1P - Tererrium light ON/OFF via Email notification 
+
 #include <Wire.h>
 #include <BH1750.h>
 #include <WiFiNINA.h>
