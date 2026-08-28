@@ -4,8 +4,8 @@
 #include <WiFiNINA.h>
 #include <PubSubClient.h>
 
-const char wifiName[] = "Alfred Nobel";
-const char wifiPassword[] = "CUPunjab";
+const char wifiName[] = "WIFI NAME";
+const char wifiPassword[] = "WIFI PASSWORD";
 
 const char mqttServer[] = "broker.emqx.io";
 const int mqttPort = 1883;
