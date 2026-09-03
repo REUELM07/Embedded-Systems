@@ -1,5 +1,5 @@
 # Submitted by: REUEL MENPARA --> 2510994818
-# SIT210 Task 3.1P - Trigger and Notification System
+# SIT210 Task 3.3C - MQTT
 
 ## System Overview
 This project uses an Arduino Nano 33 IoT, HC-SR04 ultrasonic sensor, two LEDs, Wi-Fi, and MQTT to control the bathroom and hallway lights using hand gestures.
