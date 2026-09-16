@@ -41,10 +41,10 @@ def exit_program():
     window.destroy()
 
 
-#create the main Tkinter window for the lighting system
+#these will create the main Tkinter window for the lighting system
 window = tk.Tk()
 
-#give the GUI a title and set its size
+#it will give the GUI a title and set its size
 window.title("Smart House Lighting")
 window.geometry("350x300")
 
@@ -53,7 +53,7 @@ window.geometry("350x300")
 light_choice = tk.StringVar()
 
 
-#display the main heading of the GUI
+#displays the main heading of the GUI
 tk.Label(
     window,
     text="Smart House Lighting",
@@ -65,7 +65,7 @@ tk.Label(
 rooms = ["Living Room", "Bathroom", "Closet"]
 
 
-#create one radio button for each room
+#Now, I have created one radio button for each room
 #when a radio button is selected, change_light() is called
 for room in rooms:
     tk.Radiobutton(
