@@ -1,5 +1,5 @@
 // Submitted by: REUEL MENPARA --> 2510994818
-// Task 4.2D - Calling functions from the web
+// Task 4.1P - Handling Interrupts
 
 #include <Wire.h>
 #include <BH1750.h>
