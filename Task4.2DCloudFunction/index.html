@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Linda Controlling Light</title>
+
+    <style>
+        body {
+            text-align: center;
+            margin-top: 80px;
+        }
+
+    </style>
+</head>
+
+<body>
+
+    <h1>Linda Controlling Light</h1>
+
+    <p>Select a room to control its light:</p>
+
+    <button onclick="setRoom('living room')">Living Room</button>
+
+    <button onclick="setRoom('bathroom')">Bathroom</button>
+
+    <button onclick="setRoom('closet')">Closet</button>
+
+    <button onclick="setRoom('off')">All Lights OFF</button>
+
+    <script>
+
+        //Firebase database location for the room command
+        const firebaseURL =
+            "https://linda-controlling-light-default-rtdb.firebaseio.com/room.json";
+
+        //send the selected room to Firebase
+        function setRoom(room) {
+
+            fetch(firebaseURL, {
+                method: "PUT",
+                body: JSON.stringify(room)
+            })
+
+            .then(response => {
+
+                if (!response.ok) {
+                    throw new Error("Firebase update failed");
+                }
+
+                console.log("Command sent:", room);
+                alert("Command sent: " + room);
+
+            })
+
+            .catch(error => {
+
+                console.error(error);
+                alert("Could not update Firebase");
+
+            });
+        }
+
+    </script>
+
+</body>
+</html>
