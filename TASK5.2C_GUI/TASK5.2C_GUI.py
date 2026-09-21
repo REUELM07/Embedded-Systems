@@ -6,7 +6,7 @@ lights = [18, 12, 13]
 
 GPIO.setmode(GPIO.BCM)
 
-# create pwm for each light
+# created pwm object for each light
 pwm = []
 
 for pin in lights:
@@ -16,18 +16,18 @@ for pin in lights:
     pwm.append(light)
 
 
-# update the brightness of a light
+#It will update the brightness of a light
 def set_brightness(number, value):
     pwm[number].ChangeDutyCycle(float(value))
 
 
-# create the gui
+#Now, this is how i have created the gui
 window = tk.Tk()
 window.title("Living Room Light Control")
 
 tk.Label(window, text="Light Intensity Control").pack(pady=10)
 
-# create one slider for each light
+#It will create one slider for each light
 for number in range(3):
     tk.Scale(
         window,
@@ -39,12 +39,12 @@ for number in range(3):
     ).pack(pady=5)
 
 
-# run the gui
+#Executing the gui
 try:
     window.mainloop()
 
 finally:
-    # stop pwm and clean the gpio pins
+    #stop pwm and clean the gpio pins
     for light in pwm:
         light.stop()
 
