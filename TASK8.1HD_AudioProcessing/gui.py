@@ -7,26 +7,26 @@ from bleak import BleakClient, BleakScanner
 from datetime import datetime
 
 
-# Arduino BLE settings
+#Arduino BLE settings
 DEVICE_NAME = "AudioLight"
 CHARACTERISTIC_UUID = "19B10001-E8F2-537E-4F6C-D104768A1214"
 
-# create the main window
+#main window
 root = tk.Tk()
 root.title("Voice Controlled Lighting System")
 root.geometry("850x650")
 root.configure(bg="#151922")
 root.resizable(False, False)
 
-# create the speech recognizer
+#speech recognizer
 recognizer = sr.Recognizer()
 MICROPHONE_INDEX = 1
 
-# communicate between threads
+#communicate between threads
 command_queue = queue.Queue()
 ble_queue = queue.Queue()
 
-# device states
+#device states
 hallway_on = False
 bathroom_on = False
 fan_on = False
@@ -35,11 +35,11 @@ system_running = True
 confirmation_open = False
 ble_connected = False
 
-# latest sensor reading
+#latest sensor reading
 lux_reading = None
 
 
-# update the device status
+#update the device status
 def update_status():
     if hallway_on:
         hallway_status.config(text="ON", fg="#22c55e")
@@ -57,7 +57,7 @@ def update_status():
         fan_status.config(text="VENT CLOSED", fg="#f87171")
 
 
-# update the ambient light display
+#update the ambient light display
 def update_lux(value):
     global lux_reading
 
@@ -75,7 +75,7 @@ def update_lux(value):
         )
 
 
-# add a command to history
+#add a command to history
 def add_history(command, result):
     current_time = datetime.now().strftime("%H:%M:%S")
 
@@ -85,7 +85,7 @@ def add_history(command, result):
     )
 
 
-# send a command to the Arduino over BLE
+#send a command to the Arduino over BLE
 async def send_ble_command(command):
     print("Searching for Arduino...")
 
@@ -113,7 +113,7 @@ async def send_ble_command(command):
     print("Arduino command sent:", command)
 
 
-# run BLE communication outside the GUI thread
+#run BLE communication outside the GUI thread
 def ble_worker(command, action):
     try:
         asyncio.run(send_ble_command(command))
@@ -123,7 +123,7 @@ def ble_worker(command, action):
         ble_queue.put(("error", (command, str(error))))
 
 
-# listen for voice commands
+#listen for voice commands
 def listen_for_commands():
     global system_running
 
@@ -247,7 +247,7 @@ def listen_for_commands():
         command_queue.put(("error", str(error)))
 
 
-# display the confirmation window
+#display the confirmation window
 def show_confirmation(command):
     global confirmation_open
 
@@ -286,14 +286,14 @@ def show_confirmation(command):
         wraplength=370
     ).pack(pady=10)
 
-    # execute the confirmed command
+    #execute the confirmed command
     def execute_command():
         global confirmation_open
 
         confirmation_open = False
         command_window.destroy()
 
-        # map the command to its BLE command and device
+        #map the command to its BLE command and device
         if command == "Turn ON the Hallway Light":
             ble_command = "HALLWAY_ON"
             action = ("hallway", True)
@@ -332,7 +332,7 @@ def show_confirmation(command):
             daemon=True
         ).start()
 
-    # cancel the command
+    #cancel the command
     def cancel_command():
         global confirmation_open
 
@@ -347,7 +347,7 @@ def show_confirmation(command):
 
         return_to_listening()
 
-    # confirmation buttons
+    #confirmation buttons
     button_frame = tk.Frame(
         command_window,
         bg="#202735"
@@ -388,7 +388,7 @@ def show_confirmation(command):
     )
 
 
-# return to listening after an action
+#return to listening after an action
 def return_to_listening():
     if system_running:
         listening_status.config(
@@ -397,13 +397,13 @@ def return_to_listening():
         )
 
 
-# process microphone messages and BLE results
+#process microphone messages and BLE results
 def check_command_queue():
     global system_running
     global hallway_on, bathroom_on, fan_on
 
     try:
-        # process voice recognition messages
+        #process voice recognition messages
         while not command_queue.empty():
             event_type, value = command_queue.get_nowait()
 
@@ -430,7 +430,7 @@ def check_command_queue():
 
                 add_history("Microphone", "Error")
 
-        # process BLE results
+        #process BLE results
         while not ble_queue.empty():
             event_type, value = ble_queue.get_nowait()
 
@@ -483,7 +483,7 @@ def check_command_queue():
         root.after(200, check_command_queue)
 
 
-# close the application
+#close the application
 def close_application():
     global system_running
 
@@ -491,7 +491,7 @@ def close_application():
     root.destroy()
 
 
-# create the header
+#create the header
 tk.Label(
     root,
     text="VOICE CONTROL SYSTEM",
@@ -509,7 +509,7 @@ tk.Label(
 ).pack(pady=(0, 15))
 
 
-# system status panel
+#system status panel
 status_frame = tk.Frame(
     root,
     bg="#202735",
@@ -536,7 +536,7 @@ listening_status = tk.Label(
 listening_status.pack(anchor="w", pady=(6, 0))
 
 
-# ambient light sensor panel
+#ambient light sensor panel
 lux_frame = tk.Frame(
     root,
     bg="#202735",
@@ -563,7 +563,7 @@ lux_status = tk.Label(
 lux_status.pack(side="right")
 
 
-# device status cards
+#device status cards
 device_frame = tk.Frame(
     root,
     bg="#151922"
@@ -571,7 +571,7 @@ device_frame = tk.Frame(
 device_frame.pack(fill="x", padx=30, pady=15)
 
 
-# hallway light card
+#hallway light card
 hallway_card = tk.Frame(
     device_frame,
     bg="#202735",
