@@ -25,14 +25,14 @@ MICROPHONE_INDEX = 1
 #communicate between threads
 command_queue = queue.Queue()
 ble_queue = queue.Queue()
+outgoing_ble_queue = queue.Queue()
 
-#device states
+#device states (updated from Arduino status notifications)
 hallway_on = False
 bathroom_on = False
 fan_on = False
 
 system_running = True
-confirmation_open = False
 ble_connected = False
 
 #latest sensor reading
@@ -85,42 +85,97 @@ def add_history(command, result):
     )
 
 
-#send a command to the Arduino over BLE
-async def send_ble_command(command):
-    print("Searching for Arduino...")
+#convert Arduino status text into GUI values
+def parse_arduino_status(status_text):
+    status_values = {}
 
-    device = await BleakScanner.find_device_by_name(
-        DEVICE_NAME,
-        timeout=10
-    )
+    for item in status_text.split(";"):
+        if "=" in item:
+            key, value = item.split("=", 1)
+            status_values[key.strip()] = value.strip()
 
-    if device is None:
-        raise Exception(
-            "Arduino not found. Check that it is powered on."
-        )
-
-    print("Arduino found:", device.address)
-
-    async with BleakClient(device, timeout=15) as client:
-        print("Connected to Arduino.")
-
-        await client.write_gatt_char(
-            CHARACTERISTIC_UUID,
-            command.encode("utf-8"),
-            response=True
-        )
-
-    print("Arduino command sent:", command)
+    return status_values
 
 
-#run BLE communication outside the GUI thread
-def ble_worker(command, action):
+#receive live status updates from Arduino
+def ble_notification_handler(sender, data):
     try:
-        asyncio.run(send_ble_command(command))
-        ble_queue.put(("success", (command, action)))
+        status_text = data.decode("utf-8").strip()
+        status_values = parse_arduino_status(status_text)
+        ble_queue.put(("device_status", status_values))
     except Exception as error:
-        print("BLE error:", error)
-        ble_queue.put(("error", (command, str(error))))
+        print("BLE notification error:", error)
+
+
+#keep one BLE connection open for commands and live sensor updates
+async def ble_connection_loop():
+    global ble_connected
+
+    while system_running:
+        try:
+            print("Searching for Arduino...")
+
+            device = await BleakScanner.find_device_by_name(
+                DEVICE_NAME,
+                timeout=10
+            )
+
+            if device is None:
+                raise Exception("Arduino not found. Check that it is powered on.")
+
+            print("Arduino found:", device.address)
+
+            async with BleakClient(device, timeout=15) as client:
+                ble_connected = True
+                print("Connected to Arduino.")
+
+                await client.start_notify(
+                    CHARACTERISTIC_UUID,
+                    ble_notification_handler
+                )
+
+                #Request the first complete sensor and device status.
+                await client.write_gatt_char(
+                    CHARACTERISTIC_UUID,
+                    b"GET_STATUS",
+                    response=True
+                )
+
+                ble_queue.put(("connection", "Connected to Arduino"))
+
+                while system_running and client.is_connected:
+                    try:
+                        command = outgoing_ble_queue.get_nowait()
+                    except queue.Empty:
+                        command = None
+
+                    if command is not None:
+                        try:
+                            await client.write_gatt_char(
+                                CHARACTERISTIC_UUID,
+                                command.encode("utf-8"),
+                                response=True
+                            )
+                            ble_queue.put(("sent", command))
+                            print("Arduino command sent:", command)
+                        except Exception as error:
+                            ble_queue.put(("send_error", (command, str(error))))
+                            raise
+
+                    await asyncio.sleep(0.1)
+
+        except Exception as error:
+            ble_connected = False
+            print("BLE connection error:", error)
+            ble_queue.put(("connection_error", str(error)))
+            await asyncio.sleep(3)
+
+    ble_connected = False
+
+
+#run the persistent BLE connection in a background thread
+def ble_worker():
+    asyncio.run(ble_connection_loop())
 
 
 #listen for voice commands
@@ -247,160 +302,35 @@ def listen_for_commands():
         command_queue.put(("error", str(error)))
 
 
-#display the confirmation window
-def show_confirmation(command):
-    global confirmation_open
+#send recognised voice commands directly to Arduino
+def handle_voice_command(command):
+    command_map = {
+        "Turn ON the Hallway Light": ("HALLWAY_ON", "Hallway light ON command"),
+        "Turn OFF the Hallway Light": ("HALLWAY_OFF", "Hallway light OFF command"),
+        "Turn ON the Bathroom Light": ("BATHROOM_ON", "Bathroom light ON command"),
+        "Turn OFF the Bathroom Light": ("BATHROOM_OFF", "Bathroom light OFF command"),
+        "Turn ON the Exhaust Fan": ("FAN_ON", "Ventilation open command"),
+        "Turn OFF the Exhaust Fan": ("FAN_OFF", "Ventilation close command")
+    }
 
-    if confirmation_open:
+    if command not in command_map:
         return
 
-    confirmation_open = True
+    ble_command, description = command_map[command]
 
     listening_status.config(
-        text="Command detected - awaiting confirmation",
-        fg="#fbbf24"
+        text="Sending command to Arduino...",
+        fg="#60a5fa"
     )
 
-    command_window = tk.Toplevel(root)
-    command_window.title("Confirm Command")
-    command_window.geometry("420x250")
-    command_window.configure(bg="#202735")
-    command_window.resizable(False, False)
-    command_window.transient(root)
-    command_window.grab_set()
-
-    tk.Label(
-        command_window,
-        text="VOICE COMMAND DETECTED",
-        font=("Arial", 14, "bold"),
-        fg="#60a5fa",
-        bg="#202735"
-    ).pack(pady=(25, 15))
-
-    tk.Label(
-        command_window,
-        text=command,
-        font=("Arial", 17, "bold"),
-        fg="white",
-        bg="#202735",
-        wraplength=370
-    ).pack(pady=10)
-
-    #execute the confirmed command
-    def execute_command():
-        global confirmation_open
-
-        confirmation_open = False
-        command_window.destroy()
-
-        #map the command to its BLE command and device
-        if command == "Turn ON the Hallway Light":
-            ble_command = "HALLWAY_ON"
-            action = ("hallway", True)
-
-        elif command == "Turn OFF the Hallway Light":
-            ble_command = "HALLWAY_OFF"
-            action = ("hallway", False)
-
-        elif command == "Turn ON the Bathroom Light":
-            ble_command = "BATHROOM_ON"
-            action = ("bathroom", True)
-
-        elif command == "Turn OFF the Bathroom Light":
-            ble_command = "BATHROOM_OFF"
-            action = ("bathroom", False)
-
-        elif command == "Turn ON the Exhaust Fan":
-            ble_command = "FAN_ON"
-            action = ("fan", True)
-
-        elif command == "Turn OFF the Exhaust Fan":
-            ble_command = "FAN_OFF"
-            action = ("fan", False)
-
-        else:
-            return
-
-        listening_status.config(
-            text="Sending command to Arduino...",
-            fg="#60a5fa"
-        )
-
-        threading.Thread(
-            target=ble_worker,
-            args=(ble_command, action),
-            daemon=True
-        ).start()
-
-    #cancel the command
-    def cancel_command():
-        global confirmation_open
-
-        add_history(command, "Cancelled")
-        confirmation_open = False
-        command_window.destroy()
-
-        listening_status.config(
-            text="Command cancelled",
-            fg="#fbbf24"
-        )
-
-        return_to_listening()
-
-    #confirmation buttons
-    button_frame = tk.Frame(
-        command_window,
-        bg="#202735"
-    )
-    button_frame.pack(pady=20)
-
-    tk.Button(
-        button_frame,
-        text="OK - Execute",
-        command=execute_command,
-        font=("Arial", 11, "bold"),
-        bg="#2563eb",
-        fg="white",
-        activebackground="#1d4ed8",
-        activeforeground="white",
-        width=14,
-        relief="flat",
-        cursor="hand2"
-    ).pack(side="left", padx=8)
-
-    tk.Button(
-        button_frame,
-        text="Cancel",
-        command=cancel_command,
-        font=("Arial", 11, "bold"),
-        bg="#374151",
-        fg="white",
-        activebackground="#4b5563",
-        activeforeground="white",
-        width=10,
-        relief="flat",
-        cursor="hand2"
-    ).pack(side="left", padx=8)
-
-    command_window.protocol(
-        "WM_DELETE_WINDOW",
-        cancel_command
-    )
+    add_history(command, "Sending")
+    outgoing_ble_queue.put(ble_command)
 
 
-#return to listening after an action
-def return_to_listening():
-    if system_running:
-        listening_status.config(
-            text="Listening for next command...",
-            fg="#22c55e"
-        )
-
-
-#process microphone messages and BLE results
+#process microphone messages, BLE results and live Arduino status
 def check_command_queue():
     global system_running
-    global hallway_on, bathroom_on, fan_on
+    global hallway_on, bathroom_on, fan_on, ble_connected
 
     try:
         #process voice recognition messages
@@ -408,15 +338,13 @@ def check_command_queue():
             event_type, value = command_queue.get_nowait()
 
             if event_type == "status":
-                if not confirmation_open:
-                    listening_status.config(
-                        text=value,
-                        fg="#22c55e"
-                    )
+                listening_status.config(
+                    text=value,
+                    fg="#22c55e"
+                )
 
             elif event_type == "command":
-                if not confirmation_open:
-                    show_confirmation(value)
+                handle_voice_command(value)
 
             elif event_type == "stop":
                 close_application()
@@ -427,54 +355,61 @@ def check_command_queue():
                     text="Microphone error - check terminal",
                     fg="#f87171"
                 )
-
                 add_history("Microphone", "Error")
 
-        #process BLE results
+        #process BLE connection and device status messages
         while not ble_queue.empty():
             event_type, value = ble_queue.get_nowait()
 
-            if event_type == "success":
-                command, action = value
-                device, state = action
-
-                # update the relevant device card
-                if device == "hallway":
-                    hallway_on = state
-
-                elif device == "bathroom":
-                    bathroom_on = state
-
-                elif device == "fan":
-                    fan_on = state
-
-                update_status()
-
-                add_history(
-                    command,
-                    "Command sent; Arduino acknowledged BLE write"
-                )
-
+            if event_type == "connection":
+                ble_connected = True
                 listening_status.config(
-                    text="Command sent to Arduino",
+                    text=value,
                     fg="#22c55e"
                 )
 
-                return_to_listening()
-
-            elif event_type == "error":
-                command, error_message = value
-
-                print("BLE error:", error_message)
-
+            elif event_type == "connection_error":
+                ble_connected = False
                 listening_status.config(
-                    text="BLE failed - check Arduino connection",
-                    fg="#f87171"
+                    text="Connecting to Arduino...",
+                    fg="#fbbf24"
                 )
 
-                add_history(command, "Failed: BLE connection error")
+            elif event_type == "sent":
+                add_history(value, "BLE command delivered")
+                listening_status.config(
+                    text="Command sent - waiting for device status",
+                    fg="#60a5fa"
+                )
 
-                return_to_listening()
+            elif event_type == "send_error":
+                command, error_message = value
+                print("BLE send error:", error_message)
+                listening_status.config(
+                    text="BLE command failed - check connection",
+                    fg="#f87171"
+                )
+                add_history(command, "Failed: BLE communication error")
+
+            elif event_type == "device_status":
+                status_values = value
+
+                #Update the lux display from the actual BH1750 reading.
+                lux_text = status_values.get("LUX", "INVALID")
+                if lux_text == "INVALID":
+                    update_lux(None)
+                else:
+                    try:
+                        sensor_value = float(lux_text)
+                        update_lux(sensor_value if sensor_value >= 0 else None)
+                    except ValueError:
+                        update_lux(None)
+
+                #Update device cards using the actual Arduino status.
+                hallway_on = status_values.get("HALLWAY") == "ON"
+                bathroom_on = status_values.get("BATHROOM") == "ON"
+                fan_on = status_values.get("FAN") == "ON"
+                update_status()
 
     except tk.TclError:
         return
@@ -705,6 +640,13 @@ history_list.pack(
 
 add_history("System started", "Ready")
 
+
+# start Bluetooth communication
+bluetooth_thread = threading.Thread(
+    target=ble_worker,
+    daemon=True
+)
+bluetooth_thread.start()
 
 # start voice recognition
 microphone_thread = threading.Thread(
