@@ -20,7 +20,12 @@ root.resizable(False, False)
 
 #speech recognizer
 recognizer = sr.Recognizer()
+
+# Samsung Galaxy Buds2 Pro microphone through PipeWire/PulseAudio
 MICROPHONE_INDEX = 1
+recognizer.energy_threshold = 300
+recognizer.dynamic_energy_threshold = True
+recognizer.pause_threshold = 0.8
 
 #communicate between threads
 command_queue = queue.Queue()
@@ -188,13 +193,15 @@ def listen_for_commands():
         )
 
         with microphone as source:
-            print("Calibrating microphone...")
+            print("Calibrating Samsung Galaxy Buds2 Pro microphone...")
+
             recognizer.adjust_for_ambient_noise(
                 source,
-                duration=1
+                duration=2
             )
 
-        print("Microphone ready!")
+            print("Microphone ready!")
+            print("Energy threshold:", recognizer.energy_threshold)
 
         while system_running:
             try:
@@ -205,7 +212,7 @@ def listen_for_commands():
                 with microphone as source:
                     audio = recognizer.listen(
                         source,
-                        timeout=5,
+                        timeout=10,
                         phrase_time_limit=5
                     )
 
@@ -283,6 +290,7 @@ def listen_for_commands():
                 continue
 
             except sr.UnknownValueError:
+                print("Speech was captured but could not be understood.")
                 command_queue.put(
                     (
                         "status",
