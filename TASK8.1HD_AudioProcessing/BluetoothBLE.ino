@@ -22,7 +22,7 @@ BLEService lightService(
 
 BLEStringCharacteristic lightCharacteristic(
   "19B10001-E8F2-537E-4F6C-D104768A1214",
-  BLERead | BLEWrite,
+  BLERead | BLEWrite | BLENotify,
   100
 );
 
@@ -37,6 +37,9 @@ bool fanOn = false;
 
 bool sensorReady = false;
 float lux = -1.0;
+
+//Forward declaration used when publishing sensor updates.
+String getStatus();
 
 unsigned long lastSensorRead = 0;
 
@@ -87,6 +90,7 @@ void readLightSensor() {
     Serial.println("ERROR: BH1750 reading invalid.");
 
     updateLights();
+    lightCharacteristic.writeValue(getStatus());
     return;
   }
 
@@ -99,6 +103,9 @@ void readLightSensor() {
 
   //If the room becomes bright enough, turn off any lights that are currently on.
   updateLights();
+
+  //Publish the latest real BH1750 reading to the Raspberry Pi.
+  lightCharacteristic.writeValue(getStatus());
 }
 
 
@@ -108,7 +115,7 @@ String getStatus() {
 
   status += "LUX=";
 
-  if (sensorReady) {
+  if (sensorReady && lux >= 0) {
     status += String(lux, 2);
   } else {
     status += "INVALID";
